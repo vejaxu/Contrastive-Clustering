@@ -10,6 +10,59 @@ from torch.utils import data
 import copy
 
 
+import scipy
+
+
+# --- 新增：MatDataset（与 train.py 一致）---
+class MatDataset:
+    def __init__(self, mat_file, transform=None):
+        data = scipy.io.loadmat(mat_file)
+        # 自动识别特征矩阵
+        X = None
+        for key in ['X', 'data', 'fea', 'features']:
+            if key in data:
+                X = data[key]
+                break
+        if X is None:
+            for key in data:
+                if not key.startswith('__') and isinstance(data[key], np.ndarray):
+                    if data[key].ndim == 2:
+                        X = data[key]
+                        break
+        if X is None:
+            raise ValueError("No valid 2D feature matrix found in .mat file.")
+        X = X.astype(np.float32)
+        self.features = torch.from_numpy(X)
+
+        # 尝试加载标签
+        y = None
+        for key in ['y', 'Y', 'label', 'gnd', 'labels']:
+            if key in data:
+                y = data[key].flatten()
+                break
+        if y is not None:
+            # 转为 0-based
+            unique_labels = np.unique(y)
+            label_map = {label: idx for idx, label in enumerate(unique_labels)}
+            y = np.array([label_map[label] for label in y])
+            self.labels = torch.from_numpy(y).long()
+        else:
+            self.labels = torch.full((len(self.features),), -1)
+
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.features)
+
+    def __getitem__(self, idx):
+        x = self.features[idx]
+        if self.transform:
+            x = self.transform(x)
+        else:
+            x = x
+        return x, self.labels[idx].item()
+
+
 def inference(loader, model, device):
     model.eval()
     feature_vector = []
@@ -31,7 +84,7 @@ def inference(loader, model, device):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    config = yaml_config_hook("./config/config.yaml")
+    config = yaml_config_hook("./config/config_mat.yaml")
     for k, v in config.items():
         parser.add_argument(f"--{k}", default=v, type=type(v))
     args = parser.parse_args()
@@ -100,6 +153,13 @@ if __name__ == "__main__":
             transform=transform.Transforms(size=args.image_size).test_transform,
         )
         class_num = 200
+    elif args.dataset == "AC":
+        dataset = MatDataset(
+            mat_file="/home/xwj/aaa/clustering/data/AC.mat", 
+            transform=transform.IdentityTransform()
+        )
+        class_num = 2
+        input_dim = dataset.features.shape[1]
     else:
         raise NotImplementedError
     data_loader = torch.utils.data.DataLoader(
@@ -110,7 +170,14 @@ if __name__ == "__main__":
         num_workers=args.workers,
     )
 
-    res = resnet.get_resnet(args.resnet)
+    if args.dataset == "AC":
+        from modules.mlp import MLP
+        res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
+    else:
+        from modules import resnet
+        res = resnet.get_resnet(args.resnet)
+
+    # res = resnet.get_resnet(args.resnet)
     model = network.Network(res, args.feature_dim, class_num)
     model_fp = os.path.join(args.model_path, "checkpoint_{}.tar".format(args.start_epoch))
     model.load_state_dict(torch.load(model_fp, map_location=device.type)['net'])

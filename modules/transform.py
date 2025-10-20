@@ -1,6 +1,7 @@
 import torchvision
 import cv2
 import numpy as np
+import torch
 
 
 class GaussianBlur:
@@ -42,3 +43,20 @@ class Transforms:
 
     def __call__(self, x):
         return self.train_transform(x), self.train_transform(x)
+
+
+class TabularTransform:
+    def __init__(self, noise_std=0.1, p_dropout=0.1):
+        self.noise_std = noise_std
+        self.p_dropout = p_dropout
+
+    def __call__(self, x):
+        x1 = x + torch.randn_like(x) * self.noise_std
+        mask = torch.rand_like(x) > self.p_dropout
+        x2 = x * mask.float() + torch.randn_like(x) * self.noise_std
+        return x1, x2
+
+
+class IdentityTransform:
+    def __call__(self, x):
+        return x 

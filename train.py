@@ -8,6 +8,78 @@ from utils import yaml_config_hook, save_model
 from torch.utils import data
 
 
+import scipy.io
+from torch.utils.data import Dataset
+from sklearn.preprocessing import StandardScaler
+
+
+class MatDataset(Dataset):
+    def __init__(self, mat_file, transform=None):
+        data = scipy.io.loadmat(mat_file)
+        
+        if 'data'in data:
+            X = data['data']
+        elif 'fea' in data:
+            X = data['fea']
+        elif 'X' in data:
+            X = data['X']
+        else:
+            for key in data:
+                if not key.startswith('__'):
+                    X = data[key]
+                    break
+            else:
+                raise KeyError("No valid feature matrix found in .mat file")
+
+        X = X.astype('float32')
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        elif X.ndim > 2:
+            raise ValueError("Feature matrix must be 2D")
+
+        scaler = StandardScaler()
+        X = scaler.fit_transform(X)
+
+        self.features = torch.from_numpy(X)
+
+        self.labels = None
+        if 'class' in data:
+            y = data['class'].flatten()
+        elif 'label' in data:
+            y = data['label'].flatten()
+        elif 'gt' in data:
+            y = data['gt'].flatten()
+        elif 'gtlabels' in data:
+            y = data['gtlabels'].flatten()
+        elif 'y' in data:
+            y = data['y'].flatten()
+        elif 'Y' in data:
+            y = data['Y'].flatten()
+        else:
+            y = None
+
+        if y is not None:
+            unique_labels = np.unique(y)
+            label_map = {label: idx for idx, label in enumerate(unique_labels)}
+            y = np.array([label_map[label] for label in y])
+            self.labels = torch.from_numpy(y).long()
+        else:
+            self.labels = torch.full((len(self.features),), -1)
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.features)
+
+    def __getitem__(self, idx):
+        x = self.features[idx]
+        if self.transform:
+            x_i, x_j = self.transform(x)
+        else:
+            x_i, x_j = x, x
+        label = self.labels[idx].item()
+        return (x_i, x_j), label
+
+
 def train():
     loss_epoch = 0
     for step, ((x_i, x_j), _) in enumerate(data_loader):
@@ -29,7 +101,7 @@ def train():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    config = yaml_config_hook("config/config.yaml")
+    config = yaml_config_hook("config/config_mat.yaml")
     for k, v in config.items():
         parser.add_argument(f"--{k}", default=v, type=type(v))
     args = parser.parse_args()
@@ -40,6 +112,8 @@ if __name__ == "__main__":
     torch.cuda.manual_seed_all(args.seed)
     torch.cuda.manual_seed(args.seed)
     np.random.seed(args.seed)
+
+    print(f"current dataset: {args.dataset}")
 
     # prepare data
     if args.dataset == "CIFAR-10":
@@ -90,17 +164,28 @@ if __name__ == "__main__":
             transform=transform.Transforms(s=0.5, size=args.image_size),
         )
         class_num = 200
+    elif args.dataset == "AC":
+        dataset = MatDataset(
+            mat_file="/home/xwj/aaa/clustering/data/AC.mat", 
+            transform=transform.TabularTransform(noise_std=0.1, p_dropout=0.1)
+        )
+        class_num = 2
+        input_dim = dataset.features.shape[1]
     else:
         raise NotImplementedError
     data_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
-        shuffle=True,
-        drop_last=True,
+        shuffle=False,
+        drop_last=False,
         num_workers=args.workers,
     )
     # initialize model
-    res = resnet.get_resnet(args.resnet)
+    if args.dataset == "AC":
+            from modules.mlp import MLP
+            res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
+    else:
+            res = resnet.get_resnet(args.resnet)
     model = network.Network(res, args.feature_dim, class_num)
     model = model.to('cuda')
     # optimizer / loss
