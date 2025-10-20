@@ -14,57 +14,37 @@ from sklearn.preprocessing import StandardScaler
 
 
 class MatDataset(Dataset):
-    def __init__(self, mat_file, transform=None):
+    def __init__(self, mat_file, dataset_name=None, transform=None):
         data = scipy.io.loadmat(mat_file)
         
-        if 'data'in data:
-            X = data['data']
-        elif 'fea' in data:
-            X = data['fea']
-        elif 'X' in data:
-            X = data['X']
+        if dataset_name == "AC":
+            X_raw = data['data'].astype(np.float32)
+            y = data['class']
         else:
-            for key in data:
-                if not key.startswith('__'):
-                    X = data[key]
-                    break
-            else:
-                raise KeyError("No valid feature matrix found in .mat file")
+            # ... 其他数据集逻辑（略）...
+            raise NotImplementedError
 
-        X = X.astype('float32')
-        if X.ndim == 1:
-            X = X.reshape(-1, 1)
-        elif X.ndim > 2:
-            raise ValueError("Feature matrix must be 2D")
+        # 保存原始数据（用于可视化）
+        if X_raw.ndim == 1:
+            X_raw = X_raw.reshape(-1, 1)
+        self.raw_features = torch.from_numpy(X_raw.copy())  # ← 未归一化！
 
+        # 归一化后的数据（用于训练）
+        from sklearn.preprocessing import StandardScaler
         scaler = StandardScaler()
-        X = scaler.fit_transform(X)
+        X_norm = scaler.fit_transform(X_raw)
+        self.features = torch.from_numpy(X_norm)
 
-        self.features = torch.from_numpy(X)
-
-        self.labels = None
-        if 'class' in data:
-            y = data['class'].flatten()
-        elif 'label' in data:
-            y = data['label'].flatten()
-        elif 'gt' in data:
-            y = data['gt'].flatten()
-        elif 'gtlabels' in data:
-            y = data['gtlabels'].flatten()
-        elif 'y' in data:
-            y = data['y'].flatten()
-        elif 'Y' in data:
-            y = data['Y'].flatten()
-        else:
-            y = None
-
+        # 处理标签（同前）
         if y is not None:
+            y = np.asarray(y).flatten().astype(int)
             unique_labels = np.unique(y)
             label_map = {label: idx for idx, label in enumerate(unique_labels)}
             y = np.array([label_map[label] for label in y])
             self.labels = torch.from_numpy(y).long()
         else:
             self.labels = torch.full((len(self.features),), -1)
+        
         self.transform = transform
 
     def __len__(self):
@@ -166,7 +146,7 @@ if __name__ == "__main__":
         class_num = 200
     elif args.dataset == "AC":
         dataset = MatDataset(
-            mat_file="/home/xwj/aaa/clustering/data/AC.mat", 
+            mat_file="E:\Code\data\AC.mat", 
             transform=transform.TabularTransform(noise_std=0.1, p_dropout=0.1)
         )
         class_num = 2

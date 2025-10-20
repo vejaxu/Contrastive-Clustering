@@ -13,42 +13,107 @@ import copy
 import scipy
 
 
-# --- 新增：MatDataset（与 train.py 一致）---
-class MatDataset:
-    def __init__(self, mat_file, transform=None):
-        data = scipy.io.loadmat(mat_file)
-        # 自动识别特征矩阵
-        X = None
-        for key in ['X', 'data', 'fea', 'features']:
-            if key in data:
-                X = data[key]
-                break
-        if X is None:
-            for key in data:
-                if not key.startswith('__') and isinstance(data[key], np.ndarray):
-                    if data[key].ndim == 2:
-                        X = data[key]
-                        break
-        if X is None:
-            raise ValueError("No valid 2D feature matrix found in .mat file.")
-        X = X.astype(np.float32)
-        self.features = torch.from_numpy(X)
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
+from torch.utils.data import Dataset
+from matplotlib.colors import ListedColormap
 
-        # 尝试加载标签
-        y = None
-        for key in ['y', 'Y', 'label', 'gnd', 'labels']:
-            if key in data:
-                y = data[key].flatten()
-                break
+
+def get_distinct_colors(n):
+    """生成 n 个视觉上可区分的颜色"""
+    if n <= 10:
+        # 使用 Tab10 调色板（专为分类设计）
+        cmap = plt.cm.get_cmap('tab10')
+        return [cmap(i) for i in range(n)]
+    else:
+        # 使用 hsv 或其他循环调色板
+        cmap = plt.cm.get_cmap('hsv')
+        return [cmap(i / n) for i in range(n)]
+
+def visualize_ac_clustering(X_raw, y_true, y_pred, save_dir="fig/AC"):
+    """
+    X_raw: 原始未归一化的特征，shape [N, D]
+    y_true: 真实标签，shape [N]
+    y_pred: 预测聚类标签，shape [N]
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    
+    # 降维到 2D
+    print(">>> Running t-SNE on raw features...")
+    tsne = TSNE(n_components=2, random_state=42, perplexity=min(30, len(X_raw) - 1))
+    X_embedded = tsne.fit_transform(X_raw)
+
+    # --- 真实标签图 ---
+    unique_true = np.unique(y_true)
+    n_true = len(unique_true)
+    true_colors = get_distinct_colors(n_true)
+    true_cmap = ListedColormap(true_colors)
+
+    plt.figure(figsize=(8, 6))
+    scatter = plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=y_true, cmap=true_cmap, alpha=0.7, s=15)
+    plt.title("Ground Truth Labels - AC")
+    plt.xlabel("t-SNE Dimension 1")
+    plt.ylabel("t-SNE Dimension 2")
+    plt.colorbar(scatter, label='Class Labels', ticks=unique_true)
+    plt.grid(True)
+    plt.axis('equal')
+    plt.tight_layout()
+    plt.savefig(f"{save_dir}/AC_dataset.jpg", dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # --- 预测聚类图 ---
+    unique_pred = np.unique(y_pred)
+    n_pred = len(unique_pred)
+    pred_colors = get_distinct_colors(n_pred)
+    pred_cmap = ListedColormap(pred_colors)
+
+    plt.figure(figsize=(8, 6))
+    scatter = plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=y_pred, cmap=pred_cmap, alpha=0.7, s=15)
+    plt.title("Predicted Clusters - AC")
+    plt.xlabel("t-SNE Dimension 1")
+    plt.ylabel("t-SNE Dimension 2")
+    plt.colorbar(scatter, label='Cluster Labels', ticks=unique_pred)
+    plt.grid(True)
+    plt.axis('equal')
+    plt.tight_layout()
+    plt.savefig(f"{save_dir}/AC_clusters.jpg", dpi=300, bbox_inches='tight')
+    plt.close()
+
+    print(f">>> Visualizations saved to {save_dir}/")
+
+
+class MatDataset(Dataset):
+    def __init__(self, mat_file, dataset_name=None, transform=None):
+        data = scipy.io.loadmat(mat_file)
+        
+        if dataset_name == "AC":
+            X_raw = data['data'].astype(np.float32)
+            y = data['class']
+        else:
+            # ... 其他数据集逻辑（略）...
+            raise NotImplementedError
+
+        # 保存原始数据（用于可视化）
+        if X_raw.ndim == 1:
+            X_raw = X_raw.reshape(-1, 1)
+        self.raw_features = torch.from_numpy(X_raw.copy())  # ← 未归一化！
+
+        # 归一化后的数据（用于训练）
+        from sklearn.preprocessing import StandardScaler
+        scaler = StandardScaler()
+        X_norm = scaler.fit_transform(X_raw)
+        self.features = torch.from_numpy(X_norm)
+
+        # 处理标签（同前）
         if y is not None:
-            # 转为 0-based
+            y = np.asarray(y).flatten().astype(int)
             unique_labels = np.unique(y)
             label_map = {label: idx for idx, label in enumerate(unique_labels)}
             y = np.array([label_map[label] for label in y])
             self.labels = torch.from_numpy(y).long()
         else:
             self.labels = torch.full((len(self.features),), -1)
-
+        
         self.transform = transform
 
     def __len__(self):
@@ -56,10 +121,7 @@ class MatDataset:
 
     def __getitem__(self, idx):
         x = self.features[idx]
-        if self.transform:
-            x = self.transform(x)
-        else:
-            x = x
+        x = self.transform(x) if self.transform else x
         return x, self.labels[idx].item()
 
 
@@ -84,7 +146,7 @@ def inference(loader, model, device):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    config = yaml_config_hook("./config/config_mat.yaml")
+    config = yaml_config_hook("config/config_mat.yaml")
     for k, v in config.items():
         parser.add_argument(f"--{k}", default=v, type=type(v))
     args = parser.parse_args()
@@ -155,7 +217,8 @@ if __name__ == "__main__":
         class_num = 200
     elif args.dataset == "AC":
         dataset = MatDataset(
-            mat_file="/home/xwj/aaa/clustering/data/AC.mat", 
+            mat_file="E:/Code/data/AC.mat", 
+            dataset_name="AC",
             transform=transform.IdentityTransform()
         )
         class_num = 2
@@ -179,7 +242,7 @@ if __name__ == "__main__":
 
     # res = resnet.get_resnet(args.resnet)
     model = network.Network(res, args.feature_dim, class_num)
-    model_fp = os.path.join(args.model_path, "checkpoint_{}.tar".format(args.start_epoch))
+    model_fp = os.path.join(args.model_path, f"checkpoint_{args.epochs}.tar")
     model.load_state_dict(torch.load(model_fp, map_location=device.type)['net'])
     model.to(device)
 
@@ -213,4 +276,10 @@ if __name__ == "__main__":
             for j in super_label[i]:
                 Y[Y_copy == j] = i
     nmi, ari, f, acc = evaluation.evaluate(Y, X)
+
+
+    if args.dataset == "AC":
+        # 使用未归一化的原始数据
+        original_data = dataset.raw_features.numpy()  # 确保 MatDataset 有 raw_features
+        visualize_ac_clustering(original_data, Y, X, save_dir="fig/AC")
     print('NMI = {:.4f} ARI = {:.4f} F = {:.4f} ACC = {:.4f}'.format(nmi, ari, f, acc))

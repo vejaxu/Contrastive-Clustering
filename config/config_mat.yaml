@@ -10,7 +10,7 @@ epochs: 200
 dataset: "AC" # CIFAR-10 / CIFAR-100 / STL-10 / ImageNet-10 / ImageNet-dogs / tiny-ImageNet
 
 # model options
-feature_dim: 128
+feature_dim: 2
 model_path: "save/AC"
 reload: False
 
