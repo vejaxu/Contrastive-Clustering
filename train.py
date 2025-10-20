@@ -17,7 +17,7 @@ class MatDataset(Dataset):
     def __init__(self, mat_file, dataset_name=None, transform=None):
         data = scipy.io.loadmat(mat_file)
         
-        if dataset_name == "AC" or dataset_name == "sparse_8_dense_1_dense_1":
+        if dataset_name == "AC" or dataset_name == "sparse_8_dense_1_dense_1" or dataset_name == "USPS":
             X_raw = data['data'].astype(np.float32)
             y = data['class']
         else:
@@ -160,13 +160,21 @@ if __name__ == "__main__":
         )
         class_num = 3
         input_dim = dataset.features.shape[1]
+    elif args.dataset == "USPS":
+        dataset = MatDataset(
+            mat_file="/home/xwj/aaa/clustering/data/USPS.mat", 
+            dataset_name="USPS",
+            transform=transform.TabularTransform(noise_std=0.1, p_dropout=0.1)
+        )
+        class_num = 10
+        input_dim = dataset.features.shape[1]
     else:
         raise NotImplementedError
     data_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
         shuffle=False,
-        drop_last=False,
+        drop_last=True,
         num_workers=args.workers,
     )
     # initialize model
@@ -174,6 +182,9 @@ if __name__ == "__main__":
         from modules.mlp import MLP
         res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
     elif args.dataset == "sparse_8_dense_1_dense_1":
+        from modules.mlp import MLP
+        res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
+    elif args.dataset == "USPS":
         from modules.mlp import MLP
         res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
     else:
