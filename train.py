@@ -17,7 +17,7 @@ class MatDataset(Dataset):
     def __init__(self, mat_file, dataset_name=None, transform=None):
         data = scipy.io.loadmat(mat_file)
         
-        if dataset_name == "AC":
+        if dataset_name == "AC" or dataset_name == "sparse_8_dense_1_dense_1":
             X_raw = data['data'].astype(np.float32)
             y = data['class']
         else:
@@ -152,6 +152,14 @@ if __name__ == "__main__":
         )
         class_num = 2
         input_dim = dataset.features.shape[1]
+    elif args.dataset == "sparse_8_dense_1_dense_1":
+        dataset = MatDataset(
+            mat_file="/home/xwj/aaa/clustering/data/sparse_8_dense_1_dense_1.mat", 
+            dataset_name="sparse_8_dense_1_dense_1",
+            transform=transform.TabularTransform(noise_std=0.1, p_dropout=0.1)
+        )
+        class_num = 3
+        input_dim = dataset.features.shape[1]
     else:
         raise NotImplementedError
     data_loader = torch.utils.data.DataLoader(
@@ -163,10 +171,13 @@ if __name__ == "__main__":
     )
     # initialize model
     if args.dataset == "AC":
-            from modules.mlp import MLP
-            res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
+        from modules.mlp import MLP
+        res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
+    elif args.dataset == "sparse_8_dense_1_dense_1":
+        from modules.mlp import MLP
+        res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
     else:
-            res = resnet.get_resnet(args.resnet)
+        res = resnet.get_resnet(args.resnet)
     model = network.Network(res, args.feature_dim, class_num)
     model = model.to('cuda')
     # optimizer / loss
@@ -185,7 +196,7 @@ if __name__ == "__main__":
     for epoch in range(args.start_epoch, args.epochs):
         lr = optimizer.param_groups[0]["lr"]
         loss_epoch = train()
-        if epoch % 10 == 0:
+        if epoch % 50 == 0:
             save_model(args, model, optimizer, epoch)
         print(f"Epoch [{epoch}/{args.epochs}]\t Loss: {loss_epoch / len(data_loader)}")
     save_model(args, model, optimizer, args.epochs)

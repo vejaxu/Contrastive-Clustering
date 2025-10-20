@@ -30,12 +30,7 @@ def get_distinct_colors(n):
         cmap = plt.cm.get_cmap('hsv')
         return [cmap(i / n) for i in range(n)]
 
-def visualize_ac_clustering(X_raw, y_true, y_pred, save_dir="fig/AC"):
-    """
-    X_raw: 原始未归一化的特征，shape [N, D]
-    y_true: 真实标签，shape [N]
-    y_pred: 预测聚类标签，shape [N]
-    """
+def visualize_ac_clustering(X_raw, y_true, y_pred, dataset_name, save_dir="fig/AC"):
     os.makedirs(save_dir, exist_ok=True)
     
     # 降维到 2D
@@ -46,14 +41,13 @@ def visualize_ac_clustering(X_raw, y_true, y_pred, save_dir="fig/AC"):
     else:
         X_embedded = X_raw
 
-    # --- 真实标签图 ---
     unique_true = np.unique(y_true)
     n_true = len(unique_true)
     true_colors = get_distinct_colors(n_true)
     true_cmap = ListedColormap(true_colors)
 
     plt.figure(figsize=(8, 6))
-    scatter = plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=y_true, cmap='viridis', alpha=0.7, s=15) # true_cmap
+    scatter = plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=y_true, cmap=true_cmap, alpha=0.7, s=15) # true_cmap
     plt.title("Ground Truth Labels - AC")
     plt.xlabel("t-SNE Dimension 1")
     plt.ylabel("t-SNE Dimension 2")
@@ -61,7 +55,7 @@ def visualize_ac_clustering(X_raw, y_true, y_pred, save_dir="fig/AC"):
     plt.grid(True)
     plt.axis('equal')
     plt.tight_layout()
-    plt.savefig(f"{save_dir}/AC_dataset.jpg", dpi=300, bbox_inches='tight')
+    plt.savefig(f"{save_dir}/{dataset_name}_dataset.jpg", dpi=300, bbox_inches='tight')
     plt.close()
 
     # --- 预测聚类图 ---
@@ -71,7 +65,7 @@ def visualize_ac_clustering(X_raw, y_true, y_pred, save_dir="fig/AC"):
     pred_cmap = ListedColormap(pred_colors)
 
     plt.figure(figsize=(8, 6))
-    scatter = plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=y_pred, cmap='viridis', alpha=0.7, s=15)
+    scatter = plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=y_pred, cmap=pred_cmap, alpha=0.7, s=15) # viridis
     plt.title("Predicted Clusters - AC")
     plt.xlabel("t-SNE Dimension 1")
     plt.ylabel("t-SNE Dimension 2")
@@ -79,7 +73,7 @@ def visualize_ac_clustering(X_raw, y_true, y_pred, save_dir="fig/AC"):
     plt.grid(True)
     plt.axis('equal')
     plt.tight_layout()
-    plt.savefig(f"{save_dir}/AC_clusters.jpg", dpi=300, bbox_inches='tight')
+    plt.savefig(f"{save_dir}/{dataset_name}_clusters.jpg", dpi=300, bbox_inches='tight')
     plt.close()
 
     print(f">>> Visualizations saved to {save_dir}/")
@@ -89,7 +83,7 @@ class MatDataset(Dataset):
     def __init__(self, mat_file, dataset_name=None, transform=None):
         data = scipy.io.loadmat(mat_file)
         
-        if dataset_name == "AC":
+        if dataset_name == "AC" or dataset_name == "sparse_8_dense_1_dense_1":
             X_raw = data['data'].astype(np.float32)
             y = data['class']
         else:
@@ -226,6 +220,14 @@ if __name__ == "__main__":
         )
         class_num = 2
         input_dim = dataset.features.shape[1]
+    elif args.dataset == "sparse_8_dense_1_dense_1":
+        dataset = MatDataset(
+            mat_file="/home/xwj/aaa/clustering/data/sparse_8_dense_1_dense_1.mat", 
+            dataset_name="sparse_8_dense_1_dense_1",
+            transform=transform.IdentityTransform()
+        )
+        class_num = 3
+        input_dim = dataset.features.shape[1]
     else:
         raise NotImplementedError
     data_loader = torch.utils.data.DataLoader(
@@ -237,6 +239,9 @@ if __name__ == "__main__":
     )
 
     if args.dataset == "AC":
+        from modules.mlp import MLP
+        res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
+    elif args.dataset == "sparse_8_dense_1_dense_1":
         from modules.mlp import MLP
         res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
     else:
@@ -282,7 +287,9 @@ if __name__ == "__main__":
 
 
     if args.dataset == "AC":
-        # 使用未归一化的原始数据
-        original_data = dataset.raw_features.numpy()  # 确保 MatDataset 有 raw_features
-        visualize_ac_clustering(original_data, Y, X, save_dir="fig/AC")
+        original_data = dataset.raw_features.numpy() 
+        visualize_ac_clustering(original_data, Y, X, args.dataset, save_dir="fig/AC")
+    elif args.dataset ==  "sparse_8_dense_1_dense_1":
+        original_data = dataset.raw_features.numpy()
+        visualize_ac_clustering(original_data, Y, X, args.dataset, save_dir="fig/sparse_8_dense_1_dense_1")
     print('NMI = {:.4f} ARI = {:.4f} F = {:.4f} ACC = {:.4f}'.format(nmi, ari, f, acc))
