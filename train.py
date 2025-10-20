@@ -146,7 +146,8 @@ if __name__ == "__main__":
         class_num = 200
     elif args.dataset == "AC":
         dataset = MatDataset(
-            mat_file="E:\Code\data\AC.mat", 
+            mat_file="/home/xwj/aaa/clustering/data/AC.mat", 
+            dataset_name="AC",
             transform=transform.TabularTransform(noise_std=0.1, p_dropout=0.1)
         )
         class_num = 2
