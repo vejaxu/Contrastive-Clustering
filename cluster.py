@@ -40,8 +40,11 @@ def visualize_ac_clustering(X_raw, y_true, y_pred, save_dir="fig/AC"):
     
     # 降维到 2D
     print(">>> Running t-SNE on raw features...")
-    tsne = TSNE(n_components=2, random_state=42, perplexity=min(30, len(X_raw) - 1))
-    X_embedded = tsne.fit_transform(X_raw)
+    if X_raw.shape[1] > 2:
+        tsne = TSNE(n_components=2, random_state=42, perplexity=min(30, len(X_raw) - 1))
+        X_embedded = tsne.fit_transform(X_raw)
+    else:
+        X_embedded = X_raw
 
     # --- 真实标签图 ---
     unique_true = np.unique(y_true)
@@ -50,7 +53,7 @@ def visualize_ac_clustering(X_raw, y_true, y_pred, save_dir="fig/AC"):
     true_cmap = ListedColormap(true_colors)
 
     plt.figure(figsize=(8, 6))
-    scatter = plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=y_true, cmap=true_cmap, alpha=0.7, s=15)
+    scatter = plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=y_true, cmap='viridis', alpha=0.7, s=15) # true_cmap
     plt.title("Ground Truth Labels - AC")
     plt.xlabel("t-SNE Dimension 1")
     plt.ylabel("t-SNE Dimension 2")
@@ -68,7 +71,7 @@ def visualize_ac_clustering(X_raw, y_true, y_pred, save_dir="fig/AC"):
     pred_cmap = ListedColormap(pred_colors)
 
     plt.figure(figsize=(8, 6))
-    scatter = plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=y_pred, cmap=pred_cmap, alpha=0.7, s=15)
+    scatter = plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=y_pred, cmap='viridis', alpha=0.7, s=15)
     plt.title("Predicted Clusters - AC")
     plt.xlabel("t-SNE Dimension 1")
     plt.ylabel("t-SNE Dimension 2")
