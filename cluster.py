@@ -83,7 +83,7 @@ class MatDataset(Dataset):
     def __init__(self, mat_file, dataset_name=None, transform=None):
         data = scipy.io.loadmat(mat_file)
         
-        if dataset_name == "AC" or dataset_name == "sparse_8_dense_1_dense_1" or dataset_name == "USPS":
+        if dataset_name == "AC" or dataset_name == "sparse_8_dense_1_dense_1" or dataset_name == "USPS" or dataset_name == "mnist":
             X_raw = data['data'].astype(np.float32)
             y = data['class']
         else:
@@ -236,6 +236,14 @@ if __name__ == "__main__":
         )
         class_num = 10
         input_dim = dataset.features.shape[1]
+    elif args.dataset == "mnist":
+        dataset = MatDataset(
+            mat_file="/home/xwj/aaa/clustering/data/mnist.mat", 
+            dataset_name="mnist",
+            transform=transform.IdentityTransform()
+        )
+        class_num = 10
+        input_dim = dataset.features.shape[1]
     else:
         raise NotImplementedError
     data_loader = torch.utils.data.DataLoader(
@@ -253,6 +261,9 @@ if __name__ == "__main__":
         from modules.mlp import MLP
         res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
     elif args.dataset == "USPS":
+        from modules.mlp import MLP
+        res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
+    elif args.dataset == "mnist":
         from modules.mlp import MLP
         res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
     else:
@@ -306,4 +317,7 @@ if __name__ == "__main__":
     elif args.dataset ==  "USPS":
         original_data = dataset.raw_features.numpy()
         visualize_ac_clustering(original_data, Y, X, args.dataset, save_dir="fig/USPS")
+    elif args.dataset == "mnist":
+        original_data = dataset.raw_features.numpy()
+        visualize_ac_clustering(original_data, Y, X, args.dataset, save_dir="fig/mnist")
     print('NMI = {:.4f} ARI = {:.4f} F = {:.4f} ACC = {:.4f}'.format(nmi, ari, f, acc))
