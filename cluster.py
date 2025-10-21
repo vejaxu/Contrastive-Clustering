@@ -49,9 +49,9 @@ def visualize_ac_clustering(X_raw, y_true, y_pred, dataset_name, save_dir="fig/A
     plt.figure(figsize=(8, 6))
     scatter = plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=y_true, cmap=true_cmap, alpha=0.7, s=15) # true_cmap
     plt.title("Ground Truth Labels")
-    plt.xlabel("t-SNE Dimension 1")
-    plt.ylabel("t-SNE Dimension 2")
-    plt.colorbar(scatter, label='Class Labels', ticks=unique_true)
+    # plt.xlabel("t-SNE Dimension 1")
+    # plt.ylabel("t-SNE Dimension 2")
+    # plt.colorbar(scatter, label='Class Labels', ticks=unique_true)
     plt.grid(True)
     plt.axis('equal')
     plt.tight_layout()
@@ -66,10 +66,10 @@ def visualize_ac_clustering(X_raw, y_true, y_pred, dataset_name, save_dir="fig/A
 
     plt.figure(figsize=(8, 6))
     scatter = plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=y_pred, cmap=pred_cmap, alpha=0.7, s=15) # viridis
-    plt.title("Predicted Clusters")
-    plt.xlabel("t-SNE Dimension 1")
-    plt.ylabel("t-SNE Dimension 2")
-    plt.colorbar(scatter, label='Cluster Labels', ticks=unique_pred)
+    plt.title("Contrastive Clustering")
+    # plt.xlabel("t-SNE Dimension 1")
+    # plt.ylabel("t-SNE Dimension 2")
+    # plt.colorbar(scatter, label='Cluster Labels', ticks=unique_pred)
     plt.grid(True)
     plt.axis('equal')
     plt.tight_layout()
@@ -83,7 +83,7 @@ class MatDataset(Dataset):
     def __init__(self, mat_file, dataset_name=None, transform=None):
         data = scipy.io.loadmat(mat_file)
         
-        if dataset_name == "AC" or dataset_name == "sparse_8_dense_1_dense_1" or dataset_name == "USPS" or dataset_name == "mnist":
+        if dataset_name == "AC" or dataset_name == "sparse_8_dense_1_dense_1" or dataset_name == "USPS" or dataset_name == "mnist" or args.dataset == "non_spherical":
             X_raw = data['data'].astype(np.float32)
             y = data['class']
         else:
@@ -244,6 +244,14 @@ if __name__ == "__main__":
         )
         class_num = 10
         input_dim = dataset.features.shape[1]
+    elif args.dataset == "non_spherical":
+        dataset = MatDataset(
+            mat_file="/home/xwj/aaa/clustering/data/kmeans/dataset_non_spherical.mat", 
+            dataset_name="non_spherical",
+            transform=transform.IdentityTransform()
+        )
+        class_num = 2
+        input_dim = dataset.features.shape[1]
     else:
         raise NotImplementedError
     data_loader = torch.utils.data.DataLoader(
@@ -264,6 +272,9 @@ if __name__ == "__main__":
         from modules.mlp import MLP
         res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
     elif args.dataset == "mnist":
+        from modules.mlp import MLP
+        res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
+    elif args.dataset == "non_spherical":
         from modules.mlp import MLP
         res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
     else:
@@ -320,4 +331,7 @@ if __name__ == "__main__":
     elif args.dataset == "mnist":
         original_data = dataset.raw_features.numpy()
         visualize_ac_clustering(original_data, Y, X, args.dataset, save_dir="fig/mnist")
+    elif args.dataset == "non_spherical":
+        original_data = dataset.raw_features.numpy()
+        visualize_ac_clustering(original_data, Y, X, args.dataset, save_dir="fig/non_spherical")
     print('NMI = {:.4f} ARI = {:.4f} F = {:.4f} ACC = {:.4f}'.format(nmi, ari, f, acc))

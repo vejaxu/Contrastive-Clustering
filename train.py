@@ -17,7 +17,7 @@ class MatDataset(Dataset):
     def __init__(self, mat_file, dataset_name=None, transform=None):
         data = scipy.io.loadmat(mat_file)
         
-        if dataset_name == "AC" or dataset_name == "sparse_8_dense_1_dense_1" or dataset_name == "USPS" or dataset_name == "mnist":
+        if dataset_name == "AC" or dataset_name == "sparse_8_dense_1_dense_1" or dataset_name == "USPS" or dataset_name == "mnist" or dataset_name == "non_spherical":
             X_raw = data['data'].astype(np.float32)
             y = data['class']
         else:
@@ -176,6 +176,14 @@ if __name__ == "__main__":
         )
         class_num = 10
         input_dim = dataset.features.shape[1]
+    elif args.dataset == "non_spherical":
+        dataset = MatDataset(
+            mat_file="/home/xwj/aaa/clustering/data/kmeans/dataset_non_spherical.mat", 
+            dataset_name="non_spherical",
+            transform=transform.TabularTransform(noise_std=0.1, p_dropout=0.1)
+        )
+        class_num = 2
+        input_dim = dataset.features.shape[1]
     else:
         raise NotImplementedError
     data_loader = torch.utils.data.DataLoader(
@@ -196,6 +204,9 @@ if __name__ == "__main__":
         from modules.mlp import MLP
         res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
     elif args.dataset == "mnist":
+        from modules.mlp import MLP
+        res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
+    elif args.dataset == "non_spherical":
         from modules.mlp import MLP
         res = MLP(input_dim=input_dim, hidden_dim=512, output_dim=512)
     else:
